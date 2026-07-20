@@ -1,26 +1,64 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+   TigerHelp design tokens. Minimalist: near-white canvas, one warm accent
+   (Princeton orange), generous whitespace, quiet borders. Kept small on purpose
+   so a future maintainer can restyle from one place.
+--------------------------------------------------------------------------- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafaf9;
+  --surface: #ffffff;
+  --foreground: #1c1917;
+  --muted: #78716c;
+  --border: #e7e5e4;
+  --accent: #e77500; /* Princeton orange */
+  --accent-fg: #ffffff;
+  --danger: #b91c1c;
+  --ok: #15803d;
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-danger: var(--danger);
+  --color-ok: var(--ok);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+/* Dark tokens, defined once. Applied when the OS prefers dark AND the user
+   hasn't forced light, or when the user explicitly picks dark via the toggle.
+   The explicit [data-theme] selectors win over the media query on specificity,
+   so a manual choice always overrides the system preference. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    --background: #0c0a09;
+    --surface: #1c1917;
+    --foreground: #f5f5f4;
+    --muted: #a8a29e;
+    --border: #292524;
+    --accent: #f5934a;
+    --accent-fg: #1c1917;
   }
+}
+
+:root[data-theme="dark"] {
+  --background: #0c0a09;
+  --surface: #1c1917;
+  --foreground: #f5f5f4;
+  --muted: #a8a29e;
+  --border: #292524;
+  --accent: #f5934a;
+  --accent-fg: #1c1917;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, sans-serif;
 }

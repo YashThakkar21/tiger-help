@@ -1,0 +1,132 @@
+// TigerHelp data model — first cut: single global queue, filtered by course,
+// ordered purely by signup time. Sessions/rooms/scheduling come later.
+//
+// Design principles (see design doc): boring, widely-known tech; the ticket_events
+// log is append-only and is the source of truth for all future analytics.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Connection URL lives in prisma.config.ts (Prisma 7). See .env for DATABASE_URL.
+}
+
+// Global role for the first cut. The design doc scopes roles per-course, but a
+// lab TA spans all three courses anyway, so a single role keeps auth simple until
+// CAS + per-course rosters land. Swapping to per-course roles later is additive.
+enum Role {
+  STUDENT
+  TA
+  ADMIN
+}
+
+enum TicketStatus {
+  WAITING
+  CLAIMED
+  RESOLVED
+  NO_SHOW
+  LEFT
+}
+
+// Append-only event types — every state change is logged for analytics.
+enum EventType {
+  CREATED
+  UPDATED
+  CLAIMED
+  RESOLVED
+  REQUEUED
+  NO_SHOW
+  LEFT
+}
+
+model User {
+  id        String   @id @default(cuid())
+  netid     String   @unique
+  name      String
+  email     String?
+  role      Role     @default(STUDENT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ticketsAsStudent Ticket[]      @relation("StudentTickets")
+  ticketsClaimed   Ticket[]      @relation("ClaimedTickets")
+  events           TicketEvent[]
+}
+
+model Course {
+  id        String   @id @default(cuid())
+  code      String   @unique // "COS126"
+  name      String
+  createdAt DateTime @default(now())
+
+  tickets Ticket[]
+}
+
+model Ticket {
+  id          String       @id @default(cuid())
+  status      TicketStatus @default(WAITING)
+  assignment  String
+  summary     String
+  description String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  student   User   @relation("StudentTickets", fields: [studentId], references: [id])
+  studentId String
+  course    Course @relation(fields: [courseId], references: [id])
+  courseId  String
+
+  claimedBy   User?     @relation("ClaimedTickets", fields: [claimedById], references: [id])
+  claimedById String?
+  claimedAt   DateTime?
+
+  resolvedAt     DateTime?
+  resolutionNote String?
+
+  // Requeue: a TA claimed but couldn't help, so the ticket goes back to WAITING
+  // keeping its original createdAt (and therefore its FIFO place). We flag it so
+  // a "requeued" tag can show next to the student.
+  requeuedCount Int     @default(0)
+  requeueReason String?
+
+  // FIFO position at the moment a TA claimed (design doc: TAs may claim out of order,
+  // and we record where in line the ticket was so admins can see it later).
+  queuePositionAtClaim Int?
+
+  events   TicketEvent[]
+  feedback Feedback?
+
+  @@index([status, createdAt])
+  @@index([courseId, status, createdAt])
+}
+
+// Student feedback on the help they received. Admin-only by design: this is
+// never returned by any TA-facing route (TAs cannot see their own ratings).
+model Feedback {
+  id        String   @id @default(cuid())
+  rating    Int // 1–5
+  comment   String?
+  createdAt DateTime @default(now())
+
+  ticket   Ticket @relation(fields: [ticketId], references: [id])
+  ticketId String @unique
+}
+
+model TicketEvent {
+  id        String    @id @default(cuid())
+  type      EventType
+  createdAt DateTime  @default(now())
+
+  ticket   Ticket @relation(fields: [ticketId], references: [id])
+  ticketId String
+
+  actor   User?   @relation(fields: [actorId], references: [id])
+  actorId String?
+
+  queuePositionAtClaim Int?
+
+  @@index([ticketId, createdAt])
+}

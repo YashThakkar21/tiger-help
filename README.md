@@ -56,6 +56,7 @@ switching hosts (managed cloud, CS dept server) is a one-line change, never code
 | `CAS_BASE_URL` | no | Defaults to `https://fed.princeton.edu/cas`. Only change it to point at a different CAS. |
 | `BOOTSTRAP_ADMIN_NETIDS` | no | Comma-separated netIDs promoted to `ADMIN` on sign-in. The way to create the first admin. Only ever promotes. |
 | `DEV_IDENTITY_SWITCHER` | no | Set to `off` to hide the dev sign-in shortcuts locally. Always off in production. |
+| `OFFICE_HOURS_CALENDAR` | no | The Google Calendar shown on the Calendar tab. Defaults to *Intro COS Lab*. |
 
 ## Signing in
 
@@ -84,6 +85,30 @@ for hopping between them:
 Both disappear in production, and a real CAS session always takes precedence
 over them. Open two browser windows (one normal, one incognito), be a student in
 one and a TA in the other, and watch updates appear live on both sides.
+
+## Office hours calendar
+
+The **Calendar** tab embeds a shared Google Calendar (currently *Intro COS Lab*)
+as Google's own widget. The calendar stays the source of truth for the schedule:
+head TAs edit hours in a tool they already use, and this app never has to be kept
+in sync. Embedding rather than re-rendering the feed means there is no parser,
+no recurrence rules, and no time-zone handling to maintain here.
+
+Point it at a different calendar with `OFFICE_HOURS_CALENDAR`. Paste whichever
+Google address you have — an embed link (`?src=`), a share link (`?cid=`), or a
+bare calendar id; `calendarIdFrom()` in
+[`src/lib/calendar-embed.ts`](src/lib/calendar-embed.ts) sorts them out.
+
+Two things worth knowing:
+
+- **The calendar must be shared publicly**, or students see an empty widget.
+- **The time zone is forced to `America/New_York`** and is deliberately *not*
+  read from a pasted URL. An embed URL copied out of a browser carries the time
+  zone of the machine that made it, so a link generated on a laptop set to
+  Pacific would quietly show every office hour three hours early.
+
+The widget is always light-themed — Google offers no dark variant — so it sits
+on its own white surface instead of an app-colored frame that would clash.
 
 ## How sign-in is put together
 
@@ -134,7 +159,9 @@ src/lib/session.ts        signed session cookie
 src/lib/db.ts             Prisma client (single instance)
 src/lib/events.ts         in-process pub/sub for SSE
 src/lib/queue*.ts         queue rules (no-code, min length) + DB reads
+src/lib/calendar-embed.ts Google Calendar embed URL for the Calendar tab
 src/app/login/            the login page
+src/app/calendar/         the Calendar tab
 src/app/api/auth/…        login → CAS → callback → logout
 src/app/api/…             queue + ticket action routes, SSE stream
 src/components/…          Header, queue table, modals, UI primitives

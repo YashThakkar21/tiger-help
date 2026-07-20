@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
 import { Header } from "@/components/Header";
+import { NavTabs } from "@/components/NavTabs";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -32,6 +33,8 @@ export default async function RootLayout({
       </head>
       <body className="min-h-full flex flex-col">
         <Header user={user} />
+        {/* Tabs are navigation between signed-in views; the login page has none. */}
+        {user && <NavTabs />}
         <main className="flex-1 w-full max-w-4xl mx-auto px-5 py-8">{children}</main>
       </body>
     </html>

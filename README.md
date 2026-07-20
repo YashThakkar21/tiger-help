@@ -25,7 +25,7 @@ a new student developer years from now.
 | DB access | **Prisma 7** | Typed schema + client; a future dev reads one `schema.prisma` to understand the data. |
 | Styling | **Tailwind CSS v4** | Styles live in the markup; no separate CSS system to maintain. |
 | Live updates | **Server-Sent Events** + 5s polling fallback | One-directional server→browser over plain HTTP. No extra infrastructure. |
-| Auth | **Seam at `src/lib/auth.ts`** | Today a dev identity switcher; swaps to Princeton CAS by editing one function. |
+| Auth | **Princeton CAS**, behind a seam at `src/lib/auth.ts` | No passwords to store or leak. Every page and route asks `getCurrentUser()` and never learns how identity was established. |
 
 ## Prerequisites
 
@@ -46,28 +46,71 @@ npm run dev                 # http://localhost:3000
 `DATABASE_URL` in `.env` is the **only** place the database connection is set —
 switching hosts (managed cloud, CS dept server) is a one-line change, never code.
 
-## Trying it out (before CAS)
+### Environment variables
 
-There is no login yet. Use the **Dev identity** menu in the top-right to act as any
-seeded user:
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | yes | Postgres connection string. |
+| `APP_BASE_URL` | yes | How the browser reaches this app, e.g. `http://localhost:3000`. CAS compares it byte-for-byte against the URL given at login, so scheme, host, and port must match exactly, with no trailing slash. |
+| `SESSION_SECRET` | in production | Signs the session cookie. Generate with `openssl rand -base64 32`. The app refuses to start in production without one. |
+| `CAS_BASE_URL` | no | Defaults to `https://fed.princeton.edu/cas`. Only change it to point at a different CAS. |
+| `BOOTSTRAP_ADMIN_NETIDS` | no | Comma-separated netIDs promoted to `ADMIN` on sign-in. The way to create the first admin. Only ever promotes. |
+| `DEV_IDENTITY_SWITCHER` | no | Set to `off` to hide the dev sign-in shortcuts locally. Always off in production. |
+
+## Signing in
+
+Visit any page and you land on `/login`, which offers one thing: **Sign in with
+Princeton CAS**. That hands the browser to `fed.princeton.edu`, where the netID
+and password are typed on Princeton's page, never ours. CAS returns a one-time
+ticket, the server validates it directly with CAS, and only then does the app
+issue its own signed session cookie. First sign-in creates the user as a
+`STUDENT`; admins promote from there.
+
+This works from `localhost` — Princeton's CAS accepts a `http://localhost:3000`
+service URL and validates tickets against it, so no registration is needed to
+develop. Confirm A1 in the design doc before relying on it for a deployed host.
+
+### Developing without CAS
+
+Signing in as a real netID gives you one identity, and testing the queue needs
+three (student, TA, admin). So in development the login page also lists the
+seeded users as one-click sign-ins, and the header keeps a **Dev identity** menu
+for hopping between them:
 
 - `student1/2/3` — students (join the queue)
 - `ta1/2` — TAs (claim & resolve)
-- `admin1` — admin (currently sees the TA view)
+- `admin1` — admin
 
-Open two browser windows (a normal + an incognito window), be a student in one and
-a TA in the other, and watch updates appear live on both sides.
+Both disappear in production, and a real CAS session always takes precedence
+over them. Open two browser windows (one normal, one incognito), be a student in
+one and a TA in the other, and watch updates appear live on both sides.
 
-## How CAS plugs in later
+## How sign-in is put together
 
-Everything reads the current user through `getCurrentUser()` in
-[`src/lib/auth.ts`](src/lib/auth.ts). Only `resolveNetid()` inside that file knows
-*how* a request is authenticated. To switch on CAS:
+Four files, in the order a request meets them:
 
-1. Replace the body of `resolveNetid()` with CAS ticket/session validation.
-2. Delete the dev-only shim: `src/app/api/dev/*` and `src/components/DevIdentitySwitcher.tsx`.
+1. [`src/app/api/auth/login`](src/app/api/auth/login/route.ts) — redirects to CAS.
+2. [`src/lib/cas.ts`](src/lib/cas.ts) — the CAS protocol: builds the login URL and
+   validates the returned ticket server-to-server.
+3. [`src/lib/session.ts`](src/lib/session.ts) — the signed, httpOnly session
+   cookie. It holds a netID and an issue time, HMAC-signed, so there is no
+   server-side session table to grow, expire, or back up.
+4. [`src/lib/auth.ts`](src/lib/auth.ts) — the seam. `getCurrentUser()` is the only
+   thing the rest of the app calls.
 
-No routes, pages, or components change — they only depend on the returned netID.
+Changing identity provider (Google OAuth, a departmental CAS) means editing
+`resolveNetid()` and the `/api/auth` routes. No page, component, or queue route
+changes, because none of them know how the netID was established.
+
+### Security notes for whoever maintains this
+
+- The ticket in the callback URL proves nothing on its own; it is worthless
+  until CAS confirms it, and it is single-use.
+- The session cookie is signed, not encrypted — a netID is not a secret, but a
+  forged one would be. `SESSION_SECRET` is what stops forgery.
+- Sign-out is a `POST`, so another site can't sign a user out with a link.
+- "Sign out" ends the TigerHelp session only. Ending the Princeton-wide CAS
+  session is a separate, explicit choice on the login page.
 
 ## Useful scripts
 
@@ -85,10 +128,14 @@ No routes, pages, or components change — they only depend on the returned netI
 ```
 prisma/schema.prisma      data model (single global queue, filtered by course)
 prisma/seed.ts            3 courses + sample users
-src/lib/auth.ts           >>> the auth seam (CAS swap point) <<<
+src/lib/auth.ts           >>> the auth seam: getCurrentUser() <<<
+src/lib/cas.ts            Princeton CAS protocol client
+src/lib/session.ts        signed session cookie
 src/lib/db.ts             Prisma client (single instance)
 src/lib/events.ts         in-process pub/sub for SSE
 src/lib/queue*.ts         queue rules (no-code, min length) + DB reads
+src/app/login/            the login page
+src/app/api/auth/…        login → CAS → callback → logout
 src/app/api/…             queue + ticket action routes, SSE stream
-src/components/…          Header, StudentView, TaView, UI primitives
+src/components/…          Header, queue table, modals, UI primitives
 ```

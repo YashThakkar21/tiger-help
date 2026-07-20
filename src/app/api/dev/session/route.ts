@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { DEV_NETID_COOKIE } from "@/lib/auth";
+import { DEV_NETID_COOKIE, devAuthEnabled } from "@/lib/auth";
 
 // DEV-ONLY identity switcher. This route sets/clears the dev netID cookie so we
-// can act as any seeded user before CAS exists. It is disabled in production;
-// once CAS lands, this whole file is deleted and login goes through CAS instead.
+// can act as any seeded user without needing three real netIDs. Disabled in
+// production and whenever DEV_IDENTITY_SWITCHER=off; a real CAS session always
+// takes precedence over it (see resolveNetid in src/lib/auth.ts).
 
 function guard() {
-  if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Disabled in production" }, { status: 403 });
+  if (!devAuthEnabled()) {
+    return NextResponse.json({ error: "Disabled" }, { status: 403 });
   }
   return null;
 }

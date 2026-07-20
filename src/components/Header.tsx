@@ -1,9 +1,15 @@
 import Link from "next/link";
-import type { CurrentUser } from "@/lib/auth";
+import { devAuthEnabled, type CurrentUser } from "@/lib/auth";
 import { DevIdentitySwitcher } from "./DevIdentitySwitcher";
 import { ThemeToggle } from "./ThemeToggle";
 
 export function Header({ user }: { user: CurrentUser | null }) {
+  // The dev switcher is only for hopping between seeded roles while developing.
+  // It is hidden under a real CAS session (where it would be inert — CAS always
+  // wins in resolveNetid) and when signed out (the login page offers dev
+  // sign-in there, so a second control would just be a second way to do it).
+  const showDevSwitcher = devAuthEnabled() && user?.via === "dev";
+
   return (
     <header className="border-b border-border bg-surface">
       <div className="w-full max-w-4xl mx-auto px-5 h-14 flex items-center justify-between gap-4">
@@ -16,8 +22,19 @@ export function Header({ user }: { user: CurrentUser | null }) {
               {user.name} · {user.role.toLowerCase()}
             </span>
           )}
-          {/* Dev-only until CAS lands. */}
-          <DevIdentitySwitcher currentNetid={user?.netid ?? null} />
+          {showDevSwitcher && <DevIdentitySwitcher currentNetid={user?.netid ?? null} />}
+          {user && (
+            // A plain form post: sign-out works without JavaScript, and being a
+            // POST means another site can't trigger it with a link or an image.
+            <form action="/api/auth/logout" method="post">
+              <button
+                type="submit"
+                className="text-xs text-muted transition hover:text-foreground"
+              >
+                Sign out
+              </button>
+            </form>
+          )}
           <ThemeToggle />
         </div>
       </div>

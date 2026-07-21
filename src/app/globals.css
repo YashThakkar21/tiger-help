@@ -62,3 +62,25 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
 }
+
+/* ---------------------------------------------------------------------------
+   Chart series colors (admin analytics). One fixed hue per course so identity
+   never shifts between charts. Validated as a categorical set (blue/green/
+   magenta) for colorblind separation in both modes; the dark steps are their
+   own values, not an auto-flip. See src/lib/viz.ts for the code-side mapping.
+--------------------------------------------------------------------------- */
+:root {
+  --series-cos126: #2a78d6;
+  --series-cos217: #008300;
+  --series-cos226: #e87ba4;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --series-cos126: #3987e5;
+    --series-cos226: #d55181;
+  }
+}
+:root[data-theme="dark"] {
+  --series-cos126: #3987e5;
+  --series-cos226: #d55181;
+}

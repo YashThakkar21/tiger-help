@@ -34,7 +34,7 @@ export default async function RootLayout({
       <body className="min-h-full flex flex-col">
         <Header user={user} />
         {/* Tabs are navigation between signed-in views; the login page has none. */}
-        {user && <NavTabs />}
+        {user && <NavTabs role={user.role} />}
         <main className="flex-1 w-full max-w-4xl mx-auto px-5 py-8">{children}</main>
       </body>
     </html>

@@ -13,6 +13,26 @@ After a student is resolved, a **mandatory feedback** prompt (1–5 stars + an
 optional ≤30-char note) appears; ratings are **admin-only** and never shown to
 TAs. Updates are live (SSE, with polling fallback).
 
+**Shifts.** A TA marks themselves **on shift** and, when done, **ends the shift**
+with a short wrap-up: how busy the queue was (Quiet / Steady / Slammed) and at
+least 30 characters on the recurring questions and snags they saw. Start and end
+timestamps are the server's, so they feed the staffing analytics. The number of
+TAs on shift shows on everyone's queue, a TA must be on shift to claim a student,
+and a TA can't clock off with a student still claimed.
+
+**Admin dashboard.** Admins get an extra **Admin** tab: lab analytics computed
+entirely from the rows the queue already writes (tickets, events, shifts,
+feedback) — headline KPIs, a demand heatmap by day &amp; hour, student traffic by
+course, top assignments by load, a TA-shifts overview, and a per-TA table you
+click to expand into that TA's metrics, shift notes, and feedback. Feedback and
+per-TA metrics are admin-only and never reach a TA-facing surface. The whole
+route is gated on the `ADMIN` role.
+
+An **Export** menu downloads any dataset (TA metrics, all tickets, daily
+traffic) as CSV, or copies it as TSV to paste straight into Google Sheets. Both
+go through one admin-only endpoint (`/api/admin/export`) and honor the selected
+date range.
+
 ## Tech stack (and why)
 
 Every choice favors *low-maintenance longevity* — this app should be runnable by
@@ -145,6 +165,7 @@ changes, because none of them know how the netID was established.
 | `npm run build` | Production build + typecheck |
 | `npm run db:migrate` | Apply/create migrations |
 | `npm run db:seed` | Seed courses + sample users |
+| `npm run db:seed:dev` | Add synthetic dev data (20 students, 4 TAs, ~4 weeks of tickets/shifts/feedback) to populate the admin dashboard. Re-runnable; wipes only its own `dev-` data. Not for production. |
 | `npm run db:studio` | Browse the DB in Prisma Studio |
 | `npm run db:reset` | Drop, re-migrate, re-seed (dev only) |
 
@@ -159,9 +180,14 @@ src/lib/session.ts        signed session cookie
 src/lib/db.ts             Prisma client (single instance)
 src/lib/events.ts         in-process pub/sub for SSE
 src/lib/queue*.ts         queue rules (no-code, min length) + DB reads
+src/lib/shift*.ts         shift rules (min notes, busyness) + DB reads
+src/lib/admin-service.ts  admin analytics (KPIs, heatmap, traffic, TA rollups)
+src/lib/viz.ts            chart color + formatting helpers
 src/lib/calendar-embed.ts Google Calendar embed URL for the Calendar tab
 src/app/login/            the login page
 src/app/calendar/         the Calendar tab
+src/app/admin/            the admin analytics dashboard (admin-only)
+src/components/admin/     dashboard pieces (KPIs, heatmap, traffic, TA table)
 src/app/api/auth/…        login → CAS → callback → logout
 src/app/api/…             queue + ticket action routes, SSE stream
 src/components/…          Header, queue table, modals, UI primitives

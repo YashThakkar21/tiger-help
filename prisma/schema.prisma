@@ -23,6 +23,16 @@ enum Role {
   ADMIN
 }
 
+// How busy the queue felt during a shift, as judged by the TA who worked it.
+// Three coarse buckets on purpose: a TA closing out at 10pm will answer three
+// options honestly and a seven-point scale carelessly. This is the subjective
+// counterpart to the demand the event log measures.
+enum QueueBusyness {
+  QUIET
+  STEADY
+  SLAMMED
+}
+
 enum TicketStatus {
   WAITING
   CLAIMED
@@ -54,6 +64,39 @@ model User {
   ticketsAsStudent Ticket[]      @relation("StudentTickets")
   ticketsClaimed   Ticket[]      @relation("ClaimedTickets")
   events           TicketEvent[]
+  shifts           Shift[]
+}
+
+// A TA's stint on duty: the design doc's `shift_presence`, plus a short
+// wrap-up written when they clock out.
+//
+// It answers two different questions. The timestamps say who was on duty when,
+// which is what the load dashboard and the staffing heatmaps need. The notes
+// say what actually happened — the recurring questions and snags a TA carries
+// home in their head today and nobody ever sees again. Requiring a few
+// sentences at clock-out is the cheapest way to capture that while it is still
+// fresh, and it feeds the issue-intelligence work in §4.3.
+//
+// sessionId is absent for now: office-hours sessions don't exist yet, so a
+// shift stands alone. Adding the link later is additive.
+model Shift {
+  id        String   @id @default(cuid())
+  startedAt DateTime @default(now())
+  endedAt   DateTime?
+
+  // Both are required to END a shift, and null while one is open.
+  notes    String?
+  busyness QueueBusyness?
+
+  ta   User   @relation(fields: [taId], references: [id])
+  taId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // "Is this TA on shift?" and "who was on duty?" are the two hot reads.
+  @@index([taId, startedAt])
+  @@index([endedAt])
 }
 
 model Course {

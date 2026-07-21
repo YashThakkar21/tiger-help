@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireRole } from "@/lib/auth";
 import { apiError, ApiError } from "@/lib/http";
+import { openShiftFor } from "@/lib/shift-service";
 import { publishQueueChange } from "@/lib/events";
 
 // POST /api/tickets/:id/claim — a TA claims a waiting ticket.
@@ -11,6 +12,16 @@ export async function POST(_req: Request, ctx: { params: Promise<{ id: string }>
   try {
     const ta = await requireRole("TA", "ADMIN");
     const { id } = await ctx.params;
+
+    // Must be on shift to help. This is the authoritative check — the client
+    // hides the claim action off-shift, but a stale tab (or a shift ended in
+    // another window) could still fire this, so the server is the backstop.
+    // It also means every claim sits inside a real shift, which the staffing
+    // analytics rely on.
+    const shift = await openShiftFor(ta.id);
+    if (!shift) {
+      throw new ApiError(409, "Start your shift before claiming a student.");
+    }
 
     const ticket = await prisma.ticket.findUnique({
       where: { id },

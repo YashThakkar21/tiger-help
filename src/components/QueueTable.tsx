@@ -14,11 +14,13 @@ export function QueueTable({
   tickets,
   role,
   myClaimedId,
+  onShift,
   onChange,
 }: {
   tickets: Entry[];
   role: string;
   myClaimedId: string | null;
+  onShift: boolean;
   onChange: () => void;
 }) {
   const [openId, setOpenId] = useState<string | null>(null);
@@ -50,6 +52,7 @@ export function QueueTable({
                 entry={t}
                 role={role}
                 myClaimedId={myClaimedId}
+                onShift={onShift}
                 open={openId === t.id}
                 onToggle={() => setOpenId(openId === t.id ? null : t.id)}
                 onChange={onChange}
@@ -66,6 +69,7 @@ function QueueRow({
   entry,
   role,
   myClaimedId,
+  onShift,
   open,
   onToggle,
   onChange,
@@ -73,6 +77,7 @@ function QueueRow({
   entry: Entry;
   role: string;
   myClaimedId: string | null;
+  onShift: boolean;
   open: boolean;
   onToggle: () => void;
   onChange: () => void;
@@ -134,6 +139,7 @@ function QueueRow({
               entry={entry}
               role={role}
               myClaimedId={myClaimedId}
+              onShift={onShift}
               onChange={onChange}
             />
           </td>
@@ -147,11 +153,13 @@ function RowDetail({
   entry,
   role,
   myClaimedId,
+  onShift,
   onChange,
 }: {
   entry: Entry;
   role: string;
   myClaimedId: string | null;
+  onShift: boolean;
   onChange: () => void;
 }) {
   const isStaff = role === "TA" || role === "ADMIN";
@@ -231,7 +239,17 @@ function RowDetail({
             Finish your current student before claiming another.
           </p>
         ) : (
-          <Button onClick={() => act(`/api/tickets/${entry.id}/claim`)} disabled={busy}>
+          // The button stays clickable off shift on purpose: clicking it is how
+          // a TA learns they need to clock in first. The server enforces the
+          // same rule, so this is guidance, not the gate.
+          <Button
+            onClick={() =>
+              onShift
+                ? act(`/api/tickets/${entry.id}/claim`)
+                : setError("Start your shift before claiming a student.")
+            }
+            disabled={busy}
+          >
             {busy ? "Claiming…" : "Claim"}
           </Button>
         )

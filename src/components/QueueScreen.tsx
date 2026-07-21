@@ -6,11 +6,18 @@ import { QueueTable } from "@/components/QueueTable";
 import type { Entry } from "@/lib/queue-types";
 import { JoinModal } from "@/components/JoinModal";
 import { FeedbackModal } from "@/components/FeedbackModal";
+import { ShiftBar } from "@/components/ShiftBar";
 import { formatMinutes } from "@/lib/time";
 
 type QueueData = {
   role: string;
-  stats: { waiting: number; claimed: number; avgHandleMinutes: number | null };
+  stats: {
+    waiting: number;
+    claimed: number;
+    avgHandleMinutes: number | null;
+    tasOnShift: number;
+  };
+  myShift: { id: string; startedAt: string } | null;
   myActiveId: string | null;
   myClaimedId: string | null;
   pendingFeedback: {
@@ -42,6 +49,7 @@ export function QueueScreen({ role, userName }: { role: string; userName: string
   if (!data) return <p className="text-sm text-muted">Loading…</p>;
 
   const isStudent = role === "STUDENT";
+  const isStaff = role === "TA" || role === "ADMIN";
   // Can join only when signed in as a student, with no active ticket and no
   // pending feedback (the feedback prompt must be cleared first).
   const canJoin = isStudent && !data.myActiveId && !data.pendingFeedback;
@@ -62,9 +70,13 @@ export function QueueScreen({ role, userName }: { role: string; userName: string
         <p className="text-xs text-muted">{userName}</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      {/* TAs manage their own on/off-shift state right above the queue. */}
+      {isStaff && <ShiftBar myShift={data.myShift} onChange={refetch} />}
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatTile label="Waiting" value={String(data.stats.waiting)} accent />
         <StatTile label="In progress" value={String(data.stats.claimed)} />
+        <StatTile label="TAs on shift" value={String(data.stats.tasOnShift)} />
         <StatTile
           label="Avg help time"
           value={formatMinutes(
@@ -79,6 +91,7 @@ export function QueueScreen({ role, userName }: { role: string; userName: string
         tickets={data.tickets}
         role={role}
         myClaimedId={data.myClaimedId}
+        onShift={!!data.myShift}
         onChange={refetch}
       />
 

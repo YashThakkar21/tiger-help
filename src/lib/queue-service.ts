@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { estimateWaitMinutes } from "@/lib/queue";
+import { openShiftFor, tasOnShiftCount } from "@/lib/shift-service";
 import type { Role } from "@/generated/prisma/enums";
 
 // DB-backed queue reads. There is ONE central queue shared by everyone; course
@@ -76,6 +77,14 @@ export async function queueView(viewer: Viewer) {
   const isStaff = viewer.role === "TA" || viewer.role === "ADMIN";
   const avg = await avgHandleMinutes();
 
+  // Shift state rides along with the queue rather than polling separately: the
+  // TA view needs both together, and both are already refreshed by the same
+  // SSE nudge.
+  const [onShift, myShift] = await Promise.all([
+    tasOnShiftCount(),
+    isStaff ? openShiftFor(viewer.id) : Promise.resolve(null),
+  ]);
+
   // Repeat-visit indicator (shown to staff): prior finished tickets per student.
   const studentIds = [...new Set(tickets.map((t) => t.studentId))];
   const priorCounts = new Map<string, number>();
@@ -127,7 +136,10 @@ export async function queueView(viewer: Viewer) {
       waiting: entries.filter((e) => e.status === "WAITING").length,
       claimed: entries.filter((e) => e.status === "CLAIMED").length,
       avgHandleMinutes: avg,
+      tasOnShift: onShift,
     },
+    // The viewing TA's own open shift, if any. Null for students.
+    myShift: myShift ? { id: myShift.id, startedAt: myShift.startedAt.toISOString() } : null,
     myActiveId: entries.find((e) => e.isMine)?.id ?? null,
     // The ticket this TA currently has in progress (if any). Used to prevent
     // claiming a second student while one is active.

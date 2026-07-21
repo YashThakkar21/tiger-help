@@ -31,7 +31,11 @@ export default async function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="min-h-full flex flex-col">
+      {/* suppressHydrationWarning: browser extensions (Grammarly, ad blockers)
+          inject attributes on <body> before React hydrates. That's harmless but
+          trips a hydration warning; suppressing it here silences only this
+          element's own attributes, not real mismatches in the tree below. */}
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <Header user={user} />
         {/* Tabs are navigation between signed-in views; the login page has none. */}
         {user && <NavTabs role={user.role} />}

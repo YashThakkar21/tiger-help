@@ -4,9 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { clsx } from "@/lib/clsx";
 
-// Top-level navigation. Deliberately a flat strip — as the scheduling views
-// arrive they slot in here, and the underline keeps working without turning
-// into a menu. Admin is appended only for admins (the route enforces it too).
+// Top-level navigation, a flat underlined strip. Tabs are added by role: staff
+// (TA + admin) get their shift Schedule; admins additionally get the analytics
+// dashboard. Every gated route also enforces its own access — the tab list is
+// convenience, not the security boundary.
 const BASE_TABS = [
   { href: "/", label: "Queue" },
   { href: "/calendar", label: "Calendar" },
@@ -14,8 +15,12 @@ const BASE_TABS = [
 
 export function NavTabs({ role }: { role: string }) {
   const pathname = usePathname();
-  const tabs =
-    role === "ADMIN" ? [...BASE_TABS, { href: "/admin", label: "Admin" }] : BASE_TABS;
+  const isStaff = role === "TA" || role === "ADMIN";
+  const tabs = [
+    ...BASE_TABS,
+    ...(isStaff ? [{ href: "/schedule", label: "Schedule" }] : []),
+    ...(role === "ADMIN" ? [{ href: "/admin", label: "Admin" }] : []),
+  ];
 
   return (
     <nav className="border-b border-border bg-surface">

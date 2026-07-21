@@ -20,6 +20,14 @@ timestamps are the server's, so they feed the staffing analytics. The number of
 TAs on shift shows on everyone's queue, a TA must be on shift to claim a student,
 and a TA can't clock off with a student still claimed.
 
+**Schedule &amp; swaps.** Staff (TAs and admins) get a **Schedule** tab: a weekly
+calendar of their own assigned shifts, their next shifts at a glance, and a swap
+board. A TA who can't make a shift opens it from the calendar and **gives it up**
+— it moves to the board tagged with who's out — and any TA can **cover** it. The
+cover is race-guarded so two TAs can't both take the same open shift. These
+`ScheduledShift` rows are the design doc's §4.4 scheduling layer, separate from
+the `Shift` clock-in/out presence records.
+
 **Admin dashboard.** Admins get an extra **Admin** tab: lab analytics computed
 entirely from the rows the queue already writes (tickets, events, shifts,
 feedback) — headline KPIs, a demand heatmap by day &amp; hour, student traffic by
@@ -182,12 +190,15 @@ src/lib/events.ts         in-process pub/sub for SSE
 src/lib/queue*.ts         queue rules (no-code, min length) + DB reads
 src/lib/shift*.ts         shift rules (min notes, busyness) + DB reads
 src/lib/admin-service.ts  admin analytics (KPIs, heatmap, traffic, TA rollups)
+src/lib/schedule*.ts      shift schedule + swap board (service, week math)
 src/lib/viz.ts            chart color + formatting helpers
 src/lib/calendar-embed.ts Google Calendar embed URL for the Calendar tab
 src/app/login/            the login page
 src/app/calendar/         the Calendar tab
 src/app/admin/            the admin analytics dashboard (admin-only)
+src/app/schedule/         the TA shift schedule + swap board (staff-only)
 src/components/admin/     dashboard pieces (KPIs, heatmap, traffic, TA table)
+src/components/schedule/  calendar, swap board, shift-detail modal
 src/app/api/auth/…        login → CAS → callback → logout
 src/app/api/…             queue + ticket action routes, SSE stream
 src/components/…          Header, queue table, modals, UI primitives

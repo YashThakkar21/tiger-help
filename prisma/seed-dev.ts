@@ -134,6 +134,9 @@ async function main() {
     await prisma.shift.deleteMany({ where: { taId: { in: priorIds } } });
     console.log(`  cleared prior synthetic data (${tIds.length} tickets)`);
   }
+  // Scheduled shifts only ever come from this seed today (no creation UI yet),
+  // so a full wipe keeps re-runs clean without needing a marker.
+  await prisma.scheduledShift.deleteMany({});
 
   // --- users -----------------------------------------------------------------
   const students = [];
@@ -345,6 +348,63 @@ async function main() {
     });
   }
   console.log("  + a few live waiting tickets");
+
+  // --- upcoming scheduled shifts (the schedule + swap board) -----------------
+  // A weekly office-hours pattern instantiated over the next three weeks and
+  // assigned round-robin across all staff, so whoever you sign in as has shifts
+  // to see. A handful start life on the swap board (OPEN) so it isn't empty.
+  const staff = await prisma.user.findMany({
+    where: { role: { in: ["TA", "ADMIN"] } },
+    select: { id: true, name: true },
+    orderBy: { netid: "asc" },
+  });
+
+  // dow: 0=Sun … 6=Sat, matching Date.getDay().
+  const SHIFT_TEMPLATES = [
+    { dow: 1, start: 19, end: 22, title: "COS 126 Lab Hours", location: "Lewis 122" },
+    { dow: 2, start: 19, end: 22, title: "COS 226 Lab Hours", location: "Friend 016" },
+    { dow: 3, start: 19, end: 22, title: "COS 217 Lab Hours", location: "Friend 008" },
+    { dow: 4, start: 16, end: 19, title: "COS 126 Lab Hours", location: "Lewis 122" },
+    { dow: 4, start: 19, end: 22, title: "COS 226 Lab Hours", location: "Friend 016" },
+    { dow: 0, start: 14, end: 17, title: "COS 217 Review", location: "Friend 101" },
+  ];
+
+  const today = new Date(NOW);
+  today.setHours(0, 0, 0, 0);
+  let created = 0;
+  let opened = 0;
+  let idx = 0;
+  for (let dayAhead = 0; dayAhead < 21; dayAhead++) {
+    const day = new Date(today);
+    day.setDate(day.getDate() + dayAhead);
+    for (const tpl of SHIFT_TEMPLATES) {
+      if (day.getDay() !== tpl.dow) continue;
+      const startsAt = new Date(day);
+      startsAt.setHours(tpl.start, 0, 0, 0);
+      const endsAt = new Date(day);
+      endsAt.setHours(tpl.end, 0, 0, 0);
+      if (endsAt <= NOW) continue; // only future shifts
+
+      const owner = staff[idx % staff.length];
+      // Every ~5th shift starts on the swap board, unassigned.
+      const isOpen = idx % 5 === 2 && staff.length > 1;
+      await prisma.scheduledShift.create({
+        data: {
+          startsAt,
+          endsAt,
+          title: tpl.title,
+          location: tpl.location,
+          status: isOpen ? "OPEN" : "SCHEDULED",
+          assignedToId: isOpen ? null : owner.id,
+          droppedById: isOpen ? owner.id : null,
+        },
+      });
+      created++;
+      if (isOpen) opened++;
+      idx++;
+    }
+  }
+  console.log(`  ${created} scheduled shifts (${opened} open for swap)`);
 
   console.log("Done.");
 }

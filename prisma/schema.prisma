@@ -52,6 +52,14 @@ enum EventType {
   LEFT
 }
 
+// A scheduled shift's state. SCHEDULED = a TA owns it. OPEN = it's on the swap
+// board because its TA can't make it (or it was never assigned), waiting for
+// someone to cover.
+enum ShiftSlotStatus {
+  SCHEDULED
+  OPEN
+}
+
 model User {
   id        String   @id @default(cuid())
   netid     String   @unique
@@ -65,6 +73,43 @@ model User {
   ticketsClaimed   Ticket[]      @relation("ClaimedTickets")
   events           TicketEvent[]
   shifts           Shift[]
+  scheduledShifts  ScheduledShift[] @relation("AssignedShifts")
+  droppedShifts    ScheduledShift[] @relation("DroppedShifts")
+}
+
+// A planned shift on the schedule — distinct from `Shift`, which is the
+// clock-in/out record of a stint actually worked. This is the design doc's
+// §4.4 scheduling layer: head TAs lay out who covers which office-hours block,
+// and TAs swap when they can't make one.
+//
+// The swap protocol is deliberately lightweight: a TA who can't make a shift
+// drops it (status OPEN, assignedTo cleared, droppedBy remembered so the board
+// can say who's out), and any other TA covers it (becomes assignedTo, back to
+// SCHEDULED). No admin approval gate — coverage is the goal, and admins can see
+// the whole schedule regardless.
+model ScheduledShift {
+  id       String          @id @default(cuid())
+  startsAt DateTime
+  endsAt   DateTime
+  title    String // "COS126 Lab Hours"
+  location String // room — every session is in person (design doc §4.1)
+  status   ShiftSlotStatus @default(SCHEDULED)
+
+  // The TA responsible right now. Null while the slot sits open on the board.
+  assignedTo   User?   @relation("AssignedShifts", fields: [assignedToId], references: [id])
+  assignedToId String?
+
+  // Who put it up for swap — kept so the board can show "Grace is out", and
+  // cleared once someone covers.
+  droppedBy   User?   @relation("DroppedShifts", fields: [droppedById], references: [id])
+  droppedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // "My upcoming shifts" and "what's open" are the two hot reads.
+  @@index([assignedToId, startsAt])
+  @@index([status, startsAt])
 }
 
 // A TA's stint on duty: the design doc's `shift_presence`, plus a short
